@@ -1,2 +1,3 @@
-# statter
-Status Monitoring API
+# Statter
+
+Lightweight status Monitoring API
