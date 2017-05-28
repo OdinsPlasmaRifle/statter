@@ -1,3 +1,3 @@
 # Statter
 
-Lightweight status Monitoring API
+Lightweight status monitoring application for HTTP services.
