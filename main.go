@@ -2,75 +2,94 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"flag"
 	"fmt"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 )
 
-// Set default interval for monitroing in minutes
-var monitorInterval = 1
+// Default values.
+var interval = 60
 
-// String slice type for HTTP headers
-type stringslice []string
-
-// Setting of stringslice header strings.
-func (s *stringslice) Set(value string) error {
-	*s = append(*s, value)
-	return nil
-}
-
-// Services object for carrying service specific data
-type service struct {
-	url     string
-	method  string
-	body    []byte
-	headers stringslice
-}
-
-// List of services
-type services []*service
+// CLI Flags.
+var confFile = flag.String("config", "", "Config file")
 
 func main() {
 	log.Println("Loading...")
 
-	// Create list of services
-	var err error
-	ss := services{}
-	ss, err = ss.load()
+	flag.Parse()
+	conf, err := load(*confFile)
 
 	if err != nil {
-		log.Println("Unable to load services!")
+		log.Fatalf("Unable to load services! Error: %v", err)
 	} else {
 		log.Println("Successfuly loaded, switching to monitoring mode!")
-		ss.monitor()
+		conf.monitor()
 	}
 }
 
-// Load services into a services object
-func (ss services) load() (services, error) {
-	// Add a service
-	service0 := service{}
-	service0.url = "https://rehive.com/api/3/asd"
-	service0.method = "GET"
-	ss = append(ss, &service0)
+// Configuration object.
+type config struct {
+	Interval int      `yaml:"interval"`
+	Services services `yaml:"services"`
+}
 
-	return ss, nil
+// List of multiple services.
+type services []service
+
+// Service object, stores details required for tetsing a service.
+// TODO: Add headers
+type service struct {
+	Url    string `yaml:"url"`
+	Method string `yaml:"method"`
+	Body   []byte `yaml:"body"`
+}
+
+// Load configuration.
+func load(confFile string) (config, error) {
+	conf := config{}
+
+	// Find the specified config file
+	data, fileErr := ioutil.ReadFile(confFile)
+	if fileErr != nil {
+		return conf, fileErr
+	}
+
+	// Get config from a yaml file
+	yamlErr := yaml.Unmarshal([]byte(data), &conf)
+	if yamlErr != nil {
+		return conf, yamlErr
+	}
+
+	// Set default interval
+	if conf.Interval == 0 {
+		conf.Interval = interval
+	}
+
+	// Faile if no services are defined
+	if len(conf.Services) == 0 {
+		return conf, errors.New("No services to monitor.")
+	}
+
+	return conf, nil
 }
 
 // Start up monitoring for sevices, instantiates a set of times to trigger
-// off monitroing for services.
-func (ss services) monitor() {
-	// Create a ticker and fire it off at a set duration
-	ticker := time.NewTicker(time.Duration(monitorInterval) * time.Minute)
+// off monitoring for services.
+func (conf config) monitor() {
+	// Create a ticker and fire it off at a set duration.
+	ticker := time.NewTicker(time.Duration(conf.Interval) * time.Second)
 	quit := make(chan struct{})
 
 	func() {
 		for {
 			select {
 			case <-ticker.C:
-				go ss.iterate()
+				go conf.Services.iterate()
 			case <-quit:
 				ticker.Stop()
 				return
@@ -79,23 +98,23 @@ func (ss services) monitor() {
 	}()
 }
 
-// Message for catching monitoring errors
+// Message for catching monitoring errors.
 type monitorMessage struct {
 	error error
 }
 
-// Iterate through each service and trigger a test job. Creates a monotoring
+// Iterate through each service and trigger a test task. Creates a monotoring
 // channel to catch goroutine errors.
 func (ss services) iterate() {
-	monitorJob := make(chan monitorMessage)
+	monitorTask := make(chan monitorMessage)
 
 	for _, s := range ss {
-		go s.test(monitorJob)
+		go s.test(monitorTask)
 	}
 
 	for i := 0; i < len(ss); i++ {
 		select {
-		case message := <-monitorJob:
+		case message := <-monitorTask:
 			if message.error != nil {
 				log.Println(fmt.Sprintf("Monitor: %v", message.error))
 			}
@@ -103,7 +122,7 @@ func (ss services) iterate() {
 	}
 }
 
-// Message for carrying test repsonse data
+// Message for carrying test repsonse data.
 type testMessage struct {
 	data  *http.Response
 	error error
@@ -111,38 +130,35 @@ type testMessage struct {
 
 // Run tests on services and manage errors thrown by said requests. Creates a
 // test message channel to catch any errors thrown by the actual request.
-func (s service) test(monitorJob chan<- monitorMessage) {
-	testJob := make(chan testMessage)
+func (s service) test(monitorTask chan<- monitorMessage) {
+	testTask := make(chan testMessage)
 
-	go s.request(testJob)
-	message := <-testJob
+	go s.request(testTask)
+	message := <-testTask
 
 	if message.error != nil {
-		monitorJob <- monitorMessage{error: message.error}
+		monitorTask <- monitorMessage{error: message.error}
 	} else {
-		log.Println(fmt.Sprintf("Test: %v %v", s.url, message.data.Status))
-		monitorJob <- monitorMessage{}
+		log.Println(fmt.Sprintf("Test: %v %v", s.Url, message.data.Status))
+		monitorTask <- monitorMessage{}
 	}
 }
 
 // Handle the HTTP request on the service. Returns reponse data back to the
 // test message.
-func (s *service) request(testJob chan<- testMessage) {
-	req, _ := http.NewRequest(s.method, s.url, bytes.NewBuffer(s.body))
+func (s *service) request(testTask chan<- testMessage) {
+	req, _ := http.NewRequest(s.Method, s.Url, bytes.NewBuffer(s.Body))
 
-	for i := 0; i < len(s.headers); i++ {
-		split := strings.Split(s.headers[i], ": ")
-		req.Header.Set(split[0], split[1])
-	}
+	// TODO: Set headers
 
 	client := &http.Client{}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		testJob <- testMessage{data: nil, error: err}
+		testTask <- testMessage{data: nil, error: err}
 		return
 	}
 	defer resp.Body.Close()
 
-	testJob <- testMessage{data: resp, error: nil}
+	testTask <- testMessage{data: resp, error: nil}
 }

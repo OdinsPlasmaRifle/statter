@@ -1,0 +1,6 @@
+interval: 5
+services:
+    - url: https://google.com/
+      method: GET
+    - url: https://google.com/
+      method: GET
