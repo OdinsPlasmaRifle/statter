@@ -1,0 +1,18 @@
+interval: 5
+services:
+    - url: https://requestb.in/16lg6bo1
+      method: GET
+      body: '{"test": "value"}'
+      headers:
+          - name: Content-Type
+            value: application/json
+          - name: Origin
+            value: http://example.com
+    - url: https://requestb.in/16lg6bo1
+      method: GET
+      body: '{"test": "value"}'
+      headers:
+          - name: Content-Type
+            value: application/json
+          - name: Origin
+            value: http://example.com

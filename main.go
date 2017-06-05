@@ -44,9 +44,18 @@ type services []service
 // Service object, stores details required for tetsing a service.
 // TODO: Add headers
 type service struct {
-	Url    string `yaml:"url"`
-	Method string `yaml:"method"`
-	Body   []byte `yaml:"body"`
+	Url     string  `yaml:"url"`
+	Method  string  `yaml:"method"`
+	Body    string  `yaml:"body"`
+	Headers headers `yaml:"headers"`
+}
+
+// List of multiple services.
+type headers []header
+
+type header struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
 }
 
 // Load configuration.
@@ -147,9 +156,11 @@ func (s service) test(monitorTask chan<- monitorMessage) {
 // Handle the HTTP request on the service. Returns reponse data back to the
 // test message.
 func (s *service) request(testTask chan<- testMessage) {
-	req, _ := http.NewRequest(s.Method, s.Url, bytes.NewBuffer(s.Body))
+	req, _ := http.NewRequest(s.Method, s.Url, bytes.NewBuffer([]byte(s.Body)))
 
-	// TODO: Set headers
+	for _, h := range s.Headers {
+		req.Header.Set(h.Name, h.Value)
+	}
 
 	client := &http.Client{}
 
