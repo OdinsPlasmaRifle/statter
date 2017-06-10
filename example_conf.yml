@@ -1,3 +1,4 @@
+database_file: statter.db
 interval: 5
 services:
     - url: https://requestb.in/16lg6bo1
