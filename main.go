@@ -18,6 +18,8 @@ var interval = 60
 
 // CLI Flags.
 var confFile = flag.String("config", "", "Config file")
+var serve = flag.String("serve", "", "Serve Statter API")
+var port = flag.String("port", "8080", "Statter API port")
 
 // Database
 var Db *bolt.DB
@@ -39,8 +41,41 @@ func main() {
 		log.Fatalf("Unable to connect to database! Error: %v", err)
 	}
 
-	log.Println("Successfuly initiated, switching to monitoring mode!")
+	if *serve == "true" {
+		log.Printf("Serving Statter on: %s", *port)
+		go app.serve(*port)
+	}
+
+	log.Println("Enabling monitoring mode.")
 	app.monitor()
+}
+
+func (app statter) serve(port string) {
+	router := http.NewServeMux()
+	router.HandleFunc("/services/", app.serviceHandler)
+
+	err := http.ListenAndServe(":"+port, router)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Successfully served statter API")
+}
+
+func (app statter) serviceHandler(w http.ResponseWriter, r *http.Request) {
+	for _, s := range app.Conf.Services {
+		app.Db.View(func(tx *bolt.Tx) error {
+			// Assume bucket exists and has keys
+			b := tx.Bucket([]byte(s.Url))
+			c := b.Cursor()
+
+			w.Write([]byte(fmt.Sprintf("%s\n", s.Url)))
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				w.Write([]byte(fmt.Sprintf("key=%s, value=%s\n", k, v)))
+			}
+
+			return nil
+		})
+	}
 }
 
 // Application object
