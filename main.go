@@ -116,12 +116,29 @@ func (app *statter) loadConf(confFile string) error {
 func (app *statter) connectDb() error {
 	db, err := bolt.Open(app.Conf.DatabaseFile, 0666, &bolt.Options{Timeout: 1 * time.Second})
 
+	if err != nil {
+		return err
+	}
+
 	// Initiate Buckets
+	err = db.Update(func(tx *bolt.Tx) error {
+		for _, s := range app.Conf.Services {
+			_, err := tx.CreateBucketIfNotExists([]byte(s.Url))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
 
 	// Add database to app object
 	app.Db = db
 
-	return err
+	return nil
 }
 
 // Start up monitoring for sevices, instantiates a set of times to trigger
@@ -189,13 +206,10 @@ func (s service) test(db *bolt.DB, monitorTask chan<- monitorMessage) {
 	} else {
 		// Insert into db with time key and URL bucket
 		err := db.Update(func(tx *bolt.Tx) error {
-			bucket, err := tx.CreateBucketIfNotExists([]byte(s.Url))
-			if err != nil {
-				return err
-			}
+			bucket := tx.Bucket([]byte(s.Url))
 
 			t := time.Now().Format(time.RFC3339)
-			err = bucket.Put([]byte(t), []byte(message.data.Status))
+			err := bucket.Put([]byte(t), []byte(message.data.Status))
 			if err != nil {
 				return err
 			}
