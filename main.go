@@ -26,20 +26,27 @@ func main() {
 	log.Println("Loading...")
 
 	flag.Parse()
-	conf, err := load(*confFile)
+
+	app := statter{}
+	err := app.loadConf(*confFile)
 
 	if err != nil {
 		log.Fatalf("Unable to load configuration! Error: %v", err)
 	}
 
-	Db, err := conf.connect()
+	err = app.connectDb()
 	if err != nil {
 		log.Fatalf("Unable to connect to database! Error: %v", err)
 	}
-	defer Db.Close()
 
 	log.Println("Successfuly initiated, switching to monitoring mode!")
-	conf.monitor()
+	app.monitor()
+}
+
+// Application object
+type statter struct {
+	Conf config
+	Db   *bolt.DB
 }
 
 // Configuration object.
@@ -70,19 +77,19 @@ type header struct {
 }
 
 // Load configuration.
-func load(confFile string) (config, error) {
+func (app *statter) loadConf(confFile string) error {
 	conf := config{}
 
 	// Find the specified config file
 	data, fileErr := ioutil.ReadFile(confFile)
 	if fileErr != nil {
-		return conf, fileErr
+		return fileErr
 	}
 
 	// Get config from a yaml file
 	yamlErr := yaml.Unmarshal([]byte(data), &conf)
 	if yamlErr != nil {
-		return conf, yamlErr
+		return yamlErr
 	}
 
 	// Set database file
@@ -97,38 +104,46 @@ func load(confFile string) (config, error) {
 
 	// Fail if no services are defined
 	if len(conf.Services) == 0 {
-		return conf, errors.New("No services to monitor.")
+		return errors.New("No services to monitor.")
 	}
 
-	return conf, nil
+	// Add config to app object
+	app.Conf = conf
+
+	return nil
 }
 
-func (conf config) connect() (*bolt.DB, error) {
-	db, err := bolt.Open(conf.DatabaseFile, 0666, &bolt.Options{Timeout: 1 * time.Second})
+func (app *statter) connectDb() error {
+	db, err := bolt.Open(app.Conf.DatabaseFile, 0666, &bolt.Options{Timeout: 1 * time.Second})
 
 	// Initiate Buckets
 
-	return db, err
+	// Add database to app object
+	app.Db = db
+
+	return err
 }
 
 // Start up monitoring for sevices, instantiates a set of times to trigger
 // off monitoring for services.
-func (conf config) monitor() {
+func (app *statter) monitor() {
 	// Create a ticker and fire it off at a set duration.
-	ticker := time.NewTicker(time.Duration(conf.Interval) * time.Second)
+	ticker := time.NewTicker(time.Duration(app.Conf.Interval) * time.Second)
 	quit := make(chan struct{})
 
 	func() {
 		for {
 			select {
 			case <-ticker.C:
-				go conf.Services.iterate()
+				go app.Conf.Services.iterate(app.Db)
 			case <-quit:
 				ticker.Stop()
 				return
 			}
 		}
 	}()
+
+	defer app.Db.Close()
 }
 
 // Message for catching monitoring errors.
@@ -138,11 +153,11 @@ type monitorMessage struct {
 
 // Iterate through each service and trigger a test task. Creates a monitoring
 // channel to catch goroutine errors.
-func (ss services) iterate() {
+func (ss services) iterate(db *bolt.DB) {
 	monitorTask := make(chan monitorMessage)
 
 	for _, s := range ss {
-		go s.test(monitorTask)
+		go s.test(db, monitorTask)
 	}
 
 	for i := 0; i < len(ss); i++ {
@@ -163,7 +178,7 @@ type testMessage struct {
 
 // Run tests on services and manage errors thrown by said requests. Creates a
 // test message channel to catch any errors thrown by the actual request.
-func (s service) test(monitorTask chan<- monitorMessage) {
+func (s service) test(db *bolt.DB, monitorTask chan<- monitorMessage) {
 	testTask := make(chan testMessage)
 
 	go s.request(testTask)
@@ -173,7 +188,7 @@ func (s service) test(monitorTask chan<- monitorMessage) {
 		monitorTask <- monitorMessage{error: message.error}
 	} else {
 		// Insert into db with time key and URL bucket
-		err := Db.Update(func(tx *bolt.Tx) error {
+		err := db.Update(func(tx *bolt.Tx) error {
 			bucket, err := tx.CreateBucketIfNotExists([]byte(s.Url))
 			if err != nil {
 				return err

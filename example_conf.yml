@@ -1,7 +1,7 @@
 database_file: statter.db
 interval: 5
 services:
-    - url: https://requestb.in/16lg6bo1
+    - url: https://rehive.com/api/3/
       method: GET
       body: '{"test": "value"}'
       headers:
@@ -9,7 +9,7 @@ services:
             value: application/json
           - name: Origin
             value: http://example.com
-    - url: https://requestb.in/16lg6bo1
+    - url: https://rehive.com/api/3/
       method: GET
       body: '{"test": "value"}'
       headers:
