@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -52,7 +54,7 @@ func main() {
 
 func (app statter) serve(port string) {
 	router := http.NewServeMux()
-	router.HandleFunc("/services/", app.serviceHandler)
+	router.HandleFunc("/services/", app.servicesHandler)
 
 	err := http.ListenAndServe(":"+port, router)
 	if err != nil {
@@ -61,20 +63,18 @@ func (app statter) serve(port string) {
 	log.Println("Successfully served statter API")
 }
 
-func (app statter) serviceHandler(w http.ResponseWriter, r *http.Request) {
-	for _, s := range app.Conf.Services {
-		app.Db.View(func(tx *bolt.Tx) error {
-			// Assume bucket exists and has keys
-			b := tx.Bucket([]byte(s.Url))
-			c := b.Cursor()
+func (app statter) servicesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 
-			w.Write([]byte(fmt.Sprintf("%s\n", s.Url)))
-			for k, v := c.First(); k != nil; k, v = c.Next() {
-				w.Write([]byte(fmt.Sprintf("key=%s, value=%s\n", k, v)))
-			}
+	p := strings.Split(r.URL.Path, "/")
 
-			return nil
-		})
+	if len(p) > 1 && len(string(p[0])) > 1 {
+		responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
+		w.Write(responseJson)
+	} else {
+		responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
+		w.Write(responseJson)
 	}
 }
 
@@ -222,11 +222,18 @@ func (ss services) iterate(db *bolt.DB) {
 	}
 }
 
-// Message for carrying test repsonse data.
+// Message for carrying test response data.
 type testMessage struct {
 	data  *http.Response
 	error error
 }
+
+type httpResponse struct {
+	StatusCode int
+	Body       []byte
+}
+
+type httpResponses []httpResponse
 
 // Run tests on services and manage errors thrown by said requests. Creates a
 // test message channel to catch any errors thrown by the actual request.
@@ -239,12 +246,22 @@ func (s service) test(db *bolt.DB, monitorTask chan<- monitorMessage) {
 	if message.error != nil {
 		monitorTask <- monitorMessage{error: message.error}
 	} else {
+		responseObject := httpResponse{}
+		responseObject.StatusCode = message.data.StatusCode
+		responseObject.Body, _ = ioutil.ReadAll(message.data.Body)
+		responseJson, err := json.MarshalIndent(responseObject, "", "    ")
+
+		if err != nil {
+			monitorTask <- monitorMessage{error: err}
+			return
+		}
+
 		// Insert into db with time key and URL bucket
-		err := db.Update(func(tx *bolt.Tx) error {
+		err = db.Update(func(tx *bolt.Tx) error {
 			bucket := tx.Bucket([]byte(s.Url))
 
 			t := time.Now().Format(time.RFC3339)
-			err := bucket.Put([]byte(t), []byte(message.data.Status))
+			err := bucket.Put([]byte(t), responseJson)
 			if err != nil {
 				return err
 			}
