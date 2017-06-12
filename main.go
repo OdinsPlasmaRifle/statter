@@ -70,9 +70,17 @@ func (app statter) servicesHandler(w http.ResponseWriter, r *http.Request) {
 	p := strings.Split(r.URL.Path, "/")
 
 	if len(p) > 1 && len(string(p[0])) > 1 {
+		// TODO
+		// NEED TO OUTPUT LIST OF RECENT REQUEST FOR A SERVICE (100 for now)
+
 		responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
 		w.Write(responseJson)
 	} else {
+		// TODO
+		// NEED TO OUTPUT SERVICES WITH LIMITED INFO: short name, service label, description
+		// NEED TO GET LATEST STATUS FOR EACH SERVICE (OK)
+		// LATER ADD AGGREGATES FOR SERVICE UPTIME
+
 		responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
 		w.Write(responseJson)
 	}
