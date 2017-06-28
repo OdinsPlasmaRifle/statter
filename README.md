@@ -19,4 +19,6 @@ go run main.go -config=example_conf.yml -serve=true
 
 4. Provide additional error handling for server/monitroing errors.
 
-5. Add tests
+5. Restructure default vars and CLI vars.
+
+6. Add tests
