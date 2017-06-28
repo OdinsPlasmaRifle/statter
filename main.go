@@ -2,11 +2,12 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/boltdb/bolt"
+	_ "github.com/mattn/go-sqlite3"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -23,8 +24,17 @@ var confFile = flag.String("config", "", "Config file")
 var serve = flag.String("serve", "", "Serve Statter API")
 var port = flag.String("port", "8080", "Statter API port")
 
-// Database
-var Db *bolt.DB
+// Application object
+type statter struct {
+	Conf config
+}
+
+// Configuration object.
+type config struct {
+	DatabaseFile string   `yaml:"database_file"`
+	Interval     int      `yaml:"interval"`
+	Services     services `yaml:"services"`
+}
 
 func main() {
 	log.Println("Loading...")
@@ -38,9 +48,9 @@ func main() {
 		log.Fatalf("Unable to load configuration! Error: %v", err)
 	}
 
-	err = app.connectDb()
+	err = app.setupDb()
 	if err != nil {
-		log.Fatalf("Unable to connect to database! Error: %v", err)
+		log.Fatalf("Unable to setup database! Error: %v", err)
 	}
 
 	if *serve == "true" {
@@ -60,6 +70,7 @@ func (app statter) serve(port string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	log.Println("Successfully served statter API")
 }
 
@@ -84,19 +95,6 @@ func (app statter) servicesHandler(w http.ResponseWriter, r *http.Request) {
 		responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
 		w.Write(responseJson)
 	}
-}
-
-// Application object
-type statter struct {
-	Conf config
-	Db   *bolt.DB
-}
-
-// Configuration object.
-type config struct {
-	DatabaseFile string   `yaml:"database_file"`
-	Interval     int      `yaml:"interval"`
-	Services     services `yaml:"services"`
 }
 
 // List of multiple services.
@@ -156,32 +154,32 @@ func (app *statter) loadConf(confFile string) error {
 	return nil
 }
 
-func (app *statter) connectDb() error {
-	db, err := bolt.Open(app.Conf.DatabaseFile, 0666, &bolt.Options{Timeout: 1 * time.Second})
+func (app *statter) setupDb() error {
+	db, err := app.connectDb()
 
 	if err != nil {
 		return err
 	}
 
-	// Initiate Buckets
-	err = db.Update(func(tx *bolt.Tx) error {
-		for _, s := range app.Conf.Services {
-			_, err := tx.CreateBucketIfNotExists([]byte(s.Url))
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	// Create tables
+	stmt, err := db.Prepare("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, status_code TEXT NULL, body TEXT NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+	_, err = stmt.Exec()
 
 	if err != nil {
 		return err
 	}
-
-	// Add database to app object
-	app.Db = db
 
 	return nil
+}
+
+func (app *statter) connectDb() (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", app.Conf.DatabaseFile)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
 }
 
 // Start up monitoring for sevices, instantiates a set of times to trigger
@@ -195,15 +193,13 @@ func (app *statter) monitor() {
 		for {
 			select {
 			case <-ticker.C:
-				go app.Conf.Services.iterate(app.Db)
+				go app.iterate()
 			case <-quit:
 				ticker.Stop()
 				return
 			}
 		}
 	}()
-
-	defer app.Db.Close()
 }
 
 // Message for catching monitoring errors.
@@ -213,14 +209,14 @@ type monitorMessage struct {
 
 // Iterate through each service and trigger a test task. Creates a monitoring
 // channel to catch goroutine errors.
-func (ss services) iterate(db *bolt.DB) {
+func (app *statter) iterate() {
 	monitorTask := make(chan monitorMessage)
 
-	for _, s := range ss {
-		go s.test(db, monitorTask)
+	for _, s := range app.Conf.Services {
+		go app.test(s, monitorTask)
 	}
 
-	for i := 0; i < len(ss); i++ {
+	for i := 0; i < len(app.Conf.Services); i++ {
 		select {
 		case message := <-monitorTask:
 			if message.error != nil {
@@ -236,45 +232,32 @@ type testMessage struct {
 	error error
 }
 
-type httpResponse struct {
-	StatusCode int
-	Body       []byte
-}
-
-type httpResponses []httpResponse
-
 // Run tests on services and manage errors thrown by said requests. Creates a
 // test message channel to catch any errors thrown by the actual request.
-func (s service) test(db *bolt.DB, monitorTask chan<- monitorMessage) {
+func (app *statter) test(s service, monitorTask chan<- monitorMessage) {
 	testTask := make(chan testMessage)
 
-	go s.request(testTask)
+	go app.request(s, testTask)
 	message := <-testTask
 
 	if message.error != nil {
 		monitorTask <- monitorMessage{error: message.error}
 	} else {
-		responseObject := httpResponse{}
-		responseObject.StatusCode = message.data.StatusCode
-		responseObject.Body, _ = ioutil.ReadAll(message.data.Body)
-		responseJson, err := json.MarshalIndent(responseObject, "", "    ")
+		// Insert into database
+		db, err := app.connectDb()
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}
-			return
 		}
 
-		// Insert into db with time key and URL bucket
-		err = db.Update(func(tx *bolt.Tx) error {
-			bucket := tx.Bucket([]byte(s.Url))
+		stmt, err := db.Prepare("INSERT INTO responses (status_code, body) VALUES (?, ?)")
 
-			t := time.Now().Format(time.RFC3339)
-			err := bucket.Put([]byte(t), responseJson)
-			if err != nil {
-				return err
-			}
-			return nil
-		})
+		if err != nil {
+			monitorTask <- monitorMessage{error: err}
+		}
+
+		body, _ := ioutil.ReadAll(message.data.Body)
+		_, err = stmt.Exec(message.data.StatusCode, string(body))
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}
@@ -287,7 +270,7 @@ func (s service) test(db *bolt.DB, monitorTask chan<- monitorMessage) {
 
 // Handle the HTTP request on the service. Returns reponse data back to the
 // test message.
-func (s *service) request(testTask chan<- testMessage) {
+func (app *statter) request(s service, testTask chan<- testMessage) {
 	req, _ := http.NewRequest(s.Method, s.Url, bytes.NewBuffer([]byte(s.Body)))
 
 	for _, h := range s.Headers {
