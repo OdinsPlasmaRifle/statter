@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -62,6 +63,17 @@ func main() {
 	app.monitor()
 }
 
+type dbResponses []dbResponse
+
+type dbResponse struct {
+	Id         string `db:"id"`
+	Name       string `db:"name"`
+	Url        string `db:"url"`
+	StatusCode int    `db:"status_code"`
+	Body       string `db:"body"`
+	Created    string `db:"created"`
+}
+
 func (app statter) serve(port string) {
 	router := http.NewServeMux()
 	router.HandleFunc("/services/", app.servicesHandler)
@@ -70,8 +82,6 @@ func (app statter) serve(port string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	log.Println("Successfully served statter API")
 }
 
 func (app statter) servicesHandler(w http.ResponseWriter, r *http.Request) {
@@ -88,8 +98,10 @@ func (app statter) servicesHandler(w http.ResponseWriter, r *http.Request) {
 
 	p := strings.Split(r.URL.Path, "/")
 
-	if len(p) > 2 && len(string(p[1])) > 1 {
-		rows, err := db.Query("SELECT * FROM responses WHERE service=? ORDER BY created DESC", p[0])
+	if len(p) > 3 && len(string(p[2])) > 1 {
+		var responses dbResponses
+
+		rows, err := db.Query("SELECT * FROM responses WHERE name=? ORDER BY created DESC LIMIT 100", p[2])
 
 		if err != nil {
 			// Change to return a response error
@@ -99,22 +111,20 @@ func (app statter) servicesHandler(w http.ResponseWriter, r *http.Request) {
 		defer rows.Close()
 
 		for rows.Next() {
-			var id int
-			var name string
-			var url int
-			var status_code string
-			var body string
-			var created string
+			var r dbResponse
 
-			err = rows.Scan(&id, &name, &url, &status_code, &body, &created)
+			err = rows.Scan(&r.Id, &r.Name, &r.Url, &r.StatusCode, &r.Body, &r.Created)
 
 			if err != nil {
 				// Change to return a response error
 				panic(err)
 			}
+
+			responses = append(responses, r)
 		}
 
-		w.Write([]byte("asd"))
+		responseJson, _ := json.MarshalIndent(responses, "", "    ")
+		w.Write(responseJson)
 
 	} else {
 		// TODO
@@ -122,11 +132,9 @@ func (app statter) servicesHandler(w http.ResponseWriter, r *http.Request) {
 		// NEED TO GET LATEST STATUS FOR EACH SERVICE (OK)
 		// LATER ADD AGGREGATES FOR SERVICE UPTIME
 
-		//responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
-		//w.Write(responseJson)
+		responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
+		w.Write(responseJson)
 	}
-
-	//w.Write([]byte("asd"))
 }
 
 // List of multiple services.
@@ -195,7 +203,7 @@ func (app *statter) setupDb() error {
 	}
 
 	// Create tables
-	stmt, err := db.Prepare("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, service TEXT, url TEXT, status_code INTEGER NULL, body TEXT NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+	stmt, err := db.Prepare("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, name TEXT, url TEXT, status_code INTEGER NULL, body TEXT NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
 	_, err = stmt.Exec()
 
 	if err != nil {
@@ -281,12 +289,14 @@ func (app *statter) test(s service, monitorTask chan<- monitorMessage) {
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}
+			return
 		}
 
-		stmt, err := db.Prepare("INSERT INTO responses (service, url, status_code, body) VALUES (?, ?, ?, ?)")
+		stmt, err := db.Prepare("INSERT INTO responses (name, url, status_code, body) VALUES (?, ?, ?, ?)")
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}
+			return
 		}
 
 		body, _ := ioutil.ReadAll(message.data.Body)
