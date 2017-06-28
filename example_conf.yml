@@ -1,7 +1,8 @@
 database_file: statter.db
 interval: 5
 services:
-    - url: https://rehive.com/api/3/?v=1
+    - name: test_v1
+      url: https://rehive.com/api/3/?v=1
       method: GET
       body: '{"test": "value"}'
       headers:
@@ -9,7 +10,8 @@ services:
             value: application/json
           - name: Origin
             value: http://example.com
-    - url: https://rehive.com/api/3/?v=2
+    - name: test_v2
+      url: https://rehive.com/api/3/?v=2
       method: GET
       body: '{"test": "value"}'
       headers:
@@ -17,7 +19,8 @@ services:
             value: application/json
           - name: Origin
             value: http://example.com
-    - url: https://rehive.com/api/3/?v=3
+    - name: test_v3
+      url: https://rehive.com/api/3/?v=3
       method: GET
       body: '{"test": "value"}'
       headers:

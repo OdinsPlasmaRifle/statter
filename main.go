@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -53,8 +52,9 @@ func main() {
 		log.Fatalf("Unable to setup database! Error: %v", err)
 	}
 
+	log.Printf("Serving Statter on: %s", *port)
+
 	if *serve == "true" {
-		log.Printf("Serving Statter on: %s", *port)
 		go app.serve(*port)
 	}
 
@@ -75,26 +75,58 @@ func (app statter) serve(port string) {
 }
 
 func (app statter) servicesHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	//w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+
+	// Get db connection
+	db, err := app.connectDb()
+
+	if err != nil {
+		// Change to return a response error
+		panic(err)
+	}
 
 	p := strings.Split(r.URL.Path, "/")
 
-	if len(p) > 1 && len(string(p[0])) > 1 {
-		// TODO
-		// NEED TO OUTPUT LIST OF RECENT REQUEST FOR A SERVICE (100 for now)
+	if len(p) > 2 && len(string(p[1])) > 1 {
+		rows, err := db.Query("SELECT * FROM responses WHERE service=? ORDER BY created DESC", p[0])
 
-		responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
-		w.Write(responseJson)
+		if err != nil {
+			// Change to return a response error
+			panic(err)
+		}
+
+		defer rows.Close()
+
+		for rows.Next() {
+			var id int
+			var name string
+			var url int
+			var status_code string
+			var body string
+			var created string
+
+			err = rows.Scan(&id, &name, &url, &status_code, &body, &created)
+
+			if err != nil {
+				// Change to return a response error
+				panic(err)
+			}
+		}
+
+		w.Write([]byte("asd"))
+
 	} else {
 		// TODO
 		// NEED TO OUTPUT SERVICES WITH LIMITED INFO: short name, service label, description
 		// NEED TO GET LATEST STATUS FOR EACH SERVICE (OK)
 		// LATER ADD AGGREGATES FOR SERVICE UPTIME
 
-		responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
-		w.Write(responseJson)
+		//responseJson, _ := json.MarshalIndent(app.Conf.Services, "", "    ")
+		//w.Write(responseJson)
 	}
+
+	//w.Write([]byte("asd"))
 }
 
 // List of multiple services.
@@ -103,6 +135,7 @@ type services []service
 // Service object, stores details required for tetsing a service.
 // TODO: Add headers
 type service struct {
+	Name    string  `yaml:"name"`
 	Url     string  `yaml:"url"`
 	Method  string  `yaml:"method"`
 	Body    string  `yaml:"body"`
@@ -162,7 +195,7 @@ func (app *statter) setupDb() error {
 	}
 
 	// Create tables
-	stmt, err := db.Prepare("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, status_code TEXT NULL, body TEXT NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+	stmt, err := db.Prepare("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, service TEXT, url TEXT, status_code INTEGER NULL, body TEXT NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
 	_, err = stmt.Exec()
 
 	if err != nil {
@@ -250,19 +283,19 @@ func (app *statter) test(s service, monitorTask chan<- monitorMessage) {
 			monitorTask <- monitorMessage{error: err}
 		}
 
-		stmt, err := db.Prepare("INSERT INTO responses (status_code, body) VALUES (?, ?)")
+		stmt, err := db.Prepare("INSERT INTO responses (service, url, status_code, body) VALUES (?, ?, ?, ?)")
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}
 		}
 
 		body, _ := ioutil.ReadAll(message.data.Body)
-		_, err = stmt.Exec(message.data.StatusCode, string(body))
+		_, err = stmt.Exec(s.Name, s.Url, message.data.StatusCode, string(body))
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}
 		} else {
-			log.Println(fmt.Sprintf("Test: %v %v", s.Url, message.data.Status))
+			log.Println(fmt.Sprintf("Test: %v %v %v", s.Name, s.Url, message.data.Status))
 			monitorTask <- monitorMessage{}
 		}
 	}

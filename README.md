@@ -3,7 +3,7 @@
 Lightweight status monitoring application for HTTP services.
 
 ```bash
-go run main.go -config=example_conf.yml
+go run main.go -config=example_conf.yml -serve=true
 ```
 
 ## TODO
