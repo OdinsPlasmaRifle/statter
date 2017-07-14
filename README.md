@@ -6,7 +6,7 @@ Lightweight status monitoring application for HTTP services.
 go run main.go -config=example_conf.yml -serve=true -monitor=true
 ```
 
-## TODO
+## Roadmap
 
 1. Update service response data to:  
 	a. include aggregates of data over time.  
