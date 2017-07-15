@@ -9,7 +9,7 @@ import (
 )
 
 // Default values.
-var interval = 60
+var interval = 5
 
 // Application object
 type Env struct {

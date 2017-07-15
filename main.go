@@ -10,9 +10,9 @@ import (
 )
 
 // CLI Flags.
-var confFileFlag = flag.String("config", "", "Config file")
-var monitorFlag = flag.String("monitor", "", "Run Statter Monitor")
-var serveFlag = flag.String("serve", "", "Serve Statter API")
+var confFileFlag = flag.String("config", "conf.yaml", "Config file")
+var monitorFlag = flag.String("monitor", "true", "Run Statter Monitor")
+var serveFlag = flag.String("serve", "true", "Serve Statter API")
 var portFlag = flag.String("port", "8080", "Statter API port")
 
 func main() {
@@ -20,7 +20,6 @@ func main() {
 
 	flag.Parse()
 	env, err := app.NewEnv(*confFileFlag)
-	var wg sync.WaitGroup
 
 	if err != nil {
 		log.Fatalf("Unable to load configuration! Error: %v\n", err)
@@ -30,6 +29,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to setup database! Error: %v\n", err)
 	}
+
+	var wg sync.WaitGroup
 
 	if *serveFlag == "true" {
 		log.Printf("Serving Statter on: %s", *portFlag)

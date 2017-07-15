@@ -15,3 +15,6 @@
 
 # Database files
 *.db
+
+# Configuration file
+conf.yaml
