@@ -77,8 +77,9 @@ services:
 ## Roadmap
 
 1. Update service (API) response data to:  
-	a. include aggregates of data over time.  
-	b. exclude private data like headers.  
-	c. be formatted as JSON.
-2. Provide additional error handling for server/monitoring errors.
-3. Add tests.
+	a. Include aggregates of data over time.  
+	b. Exclude private data like headers.  
+	c. Be formatted as JSON.
+2. Add request time  to DB for each monitor task.
+3. Improve error handling for server amd monitoring.
+4. Add tests.
