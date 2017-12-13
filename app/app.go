@@ -18,7 +18,7 @@ type Env struct {
 
 // Configuration object.
 type Config struct {
-	DatabaseFile string   `yaml:"database_file"`
+	DatabaseFile string   `yaml:"databaseFile"`
 	Interval     int      `yaml:"interval"`
 	Services     Services `yaml:"services"`
 }
