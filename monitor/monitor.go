@@ -75,7 +75,6 @@ func (mon *Monitor) test(s app.Service, monitorTask chan<- monitorMessage) {
 	if message.error != nil {
 		monitorTask <- monitorMessage{error: message.error}
 	} else {
-		// Insert into database
 		db, err := mon.ConnectDb()
 
 		if err != nil {
@@ -83,15 +82,8 @@ func (mon *Monitor) test(s app.Service, monitorTask chan<- monitorMessage) {
 			return
 		}
 
-		stmt, err := db.Prepare("INSERT INTO responses (name, url, status_code, body) VALUES (?, ?, ?, ?)")
-
-		if err != nil {
-			monitorTask <- monitorMessage{error: err}
-			return
-		}
-
 		body, _ := ioutil.ReadAll(message.data.Body)
-		_, err = stmt.Exec(s.Name, s.Url, message.data.StatusCode, string(body))
+		_, err = db.Exec("INSERT INTO responses (name, url, status_code, body) VALUES (?, ?, ?, ?)", s.Name, s.Url, message.data.StatusCode, string(body))
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}

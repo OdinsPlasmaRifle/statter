@@ -22,15 +22,22 @@ func (srv Server) Serve(port string) {
 	}
 }
 
-type dbResponses []dbResponse
-
-type dbResponse struct {
+// Response struct for data stored in the database.
+type response struct {
 	Id         string `db:"id"`
 	Name       string `db:"name"`
 	Url        string `db:"url"`
 	StatusCode int    `db:"status_code"`
 	Body       string `db:"body"`
 	Created    string `db:"created"`
+}
+
+// Service struct for custom builtd outputs.
+type service struct {
+	Name        string
+	Label       string
+	Description string
+	Responses   []*response
 }
 
 func (srv Server) servicesHandler(w http.ResponseWriter, r *http.Request) {
@@ -41,47 +48,38 @@ func (srv Server) servicesHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := srv.ConnectDb()
 
 	if err != nil {
-		// Change to return a response error
 		panic(err)
 	}
 
 	p := strings.Split(r.URL.Path, "/")
 
 	if len(p) > 3 && len(string(p[2])) > 1 {
-		var responses dbResponses
-
-		rows, err := db.Query("SELECT * FROM responses WHERE name=? ORDER BY created DESC LIMIT 100", p[2])
+		rs := []*response{}
+		err := db.Select(&rs, "SELECT * FROM responses WHERE name=$1", p[2])
 
 		if err != nil {
-			// Change to return a response error
 			panic(err)
 		}
 
-		defer rows.Close()
-
-		for rows.Next() {
-			var r dbResponse
-
-			err = rows.Scan(&r.Id, &r.Name, &r.Url, &r.StatusCode, &r.Body, &r.Created)
-
-			if err != nil {
-				// Change to return a response error
-				panic(err)
-			}
-
-			responses = append(responses, r)
-		}
-
-		responseJson, _ := json.MarshalIndent(responses, "", "    ")
+		responseJson, _ := json.MarshalIndent(rs, "", "    ")
 		w.Write(responseJson)
 
 	} else {
-		// TODO
-		// NEED TO OUTPUT SERVICES WITH LIMITED INFO: short name, service label, description
-		// NEED TO GET LATEST STATUS FOR EACH SERVICE (OK)
-		// LATER ADD AGGREGATES FOR SERVICE UPTIME
+		var ss []service
 
-		responseJson, _ := json.MarshalIndent(srv.Conf.Services, "", "    ")
+		for _, confS := range srv.Conf.Services {
+			rs := []*response{}
+			err := db.Select(&rs, "SELECT * FROM responses WHERE name=$1", confS.Name)
+
+			if err != nil {
+				panic(err)
+			}
+
+			s := service{Name: confS.Name, Label: confS.Label, Description: confS.Description, Responses: rs}
+			ss = append(ss, s)
+		}
+
+		responseJson, _ := json.MarshalIndent(ss, "", "    ")
 		w.Write(responseJson)
 	}
 }

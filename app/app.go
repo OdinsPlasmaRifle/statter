@@ -1,8 +1,8 @@
 package app
 
 import (
-	"database/sql"
 	"errors"
+	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -28,11 +28,13 @@ type Services []Service
 
 // Service object, stores details required for tetsing a service.
 type Service struct {
-	Name    string  `yaml:"name"`
-	Url     string  `yaml:"url"`
-	Method  string  `yaml:"method"`
-	Body    string  `yaml:"body"`
-	Headers Headers `yaml:"headers"`
+	Name        string  `yaml:"name"`
+	Label       string  `yaml:"label"`
+	Description string  `yaml:"description"`
+	Url         string  `yaml:"url"`
+	Method      string  `yaml:"method"`
+	Body        string  `yaml:"body"`
+	Headers     Headers `yaml:"headers"`
 }
 
 // List of multiple services.
@@ -87,9 +89,7 @@ func (env *Env) SetupDb() error {
 		return err
 	}
 
-	// Create tables
-	stmt, err := db.Prepare("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, name TEXT, url TEXT, status_code INTEGER NULL, body TEXT NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-	_, err = stmt.Exec()
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, name TEXT, url TEXT, status_code INTEGER NULL, body TEXT NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
 
 	if err != nil {
 		return err
@@ -98,8 +98,8 @@ func (env *Env) SetupDb() error {
 	return nil
 }
 
-func (env *Env) ConnectDb() (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", env.Conf.DatabaseFile)
+func (env *Env) ConnectDb() (*sqlx.DB, error) {
+	db, err := sqlx.Open("sqlite3", env.Conf.DatabaseFile)
 
 	if err != nil {
 		return nil, err
