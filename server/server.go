@@ -2,10 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/julienschmidt/httprouter"
 	"github.com/odinsplasmarifle/statter/app"
 	"log"
 	"net/http"
-	"strings"
 )
 
 type Server struct {
@@ -13,13 +13,21 @@ type Server struct {
 }
 
 func (srv Server) Serve(port string) {
-	router := http.NewServeMux()
-	router.HandleFunc("/services/", srv.servicesHandler)
+	router := httprouter.New()
 
-	err := http.ListenAndServe(":"+port, router)
-	if err != nil {
-		log.Fatal(err)
-	}
+	router.GET("/services/", srv.listServices)
+	router.GET("/responses/", srv.listResponses)
+
+	log.Fatal(http.ListenAndServe(":"+port, router))
+}
+
+// Service struct for custom builtd outputs.
+type service struct {
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	// TotalRequests       int         `json:"totalRequests"`
+	// TotalFailedRequests int         `json:"totalFailedRequests"`
 }
 
 // Response struct for data stored in the database.
@@ -31,54 +39,70 @@ type response struct {
 	Created    string `db:"created" json:"created"`
 }
 
-// Service struct for custom builtd outputs.
-type service struct {
-	Name        string      `json:"name"`
-	Label       string      `json:"label"`
-	Description string      `json:"description"`
-	Responses   []*response `json:"responses"`
+func (srv Server) listServices(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	//db, err := srv.ConnectDb()
+
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	var ss []service
+	filters := r.URL.Query()
+
+	for _, confService := range srv.Conf.Services {
+		mustAppend := true
+
+		if filters["name"] != nil {
+			if filters["name"][0] != "" && confService.Name == filters["name"][0] {
+				mustAppend = true
+			} else {
+				mustAppend = false
+			}
+		}
+
+		if mustAppend {
+			// latest := []*response{}
+			// err := db.Select(&latest, "SELECT * FROM responses WHERE name=$1 LIMIT 5", confService.Name)
+
+			// if err != nil {
+			// 	panic(err)
+			// }
+
+			s := service{Name: confService.Name, Label: confService.Label, Description: confService.Description}
+			ss = append(ss, s)
+		}
+	}
+
+	responseJson, _ := json.MarshalIndent(ss, "", "    ")
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseJson)
 }
 
-func (srv Server) servicesHandler(w http.ResponseWriter, r *http.Request) {
-	//w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	// Get db connection
+func (srv Server) listResponses(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	db, err := srv.ConnectDb()
 
 	if err != nil {
 		panic(err)
 	}
 
-	p := strings.Split(r.URL.Path, "/")
+	rs := []*response{}
+	filters := r.URL.Query()
 
-	if len(p) > 3 && len(string(p[2])) > 1 {
-		rs := []*response{}
-		err := db.Select(&rs, "SELECT * FROM responses WHERE name=$1", p[2])
-
-		if err != nil {
-			panic(err)
-		}
-
-		responseJson, _ := json.MarshalIndent(rs, "", "    ")
-		w.Write(responseJson)
-
+	if filters["name"] != nil && filters["name"][0] != "" {
+		err = db.Select(&rs, "SELECT * FROM responses WHERE name=$1 ORDER BY id DESC LIMIT 100", filters["name"][0])
 	} else {
-		var ss []service
-
-		for _, confS := range srv.Conf.Services {
-			rs := []*response{}
-			err := db.Select(&rs, "SELECT * FROM responses WHERE name=$1", confS.Name)
-
-			if err != nil {
-				panic(err)
-			}
-
-			s := service{Name: confS.Name, Label: confS.Label, Description: confS.Description, Responses: rs}
-			ss = append(ss, s)
-		}
-
-		responseJson, _ := json.MarshalIndent(ss, "", "    ")
-		w.Write(responseJson)
+		err = db.Select(&rs, "SELECT * FROM responses ORDER BY id DESC LIMIT 100")
 	}
+
+	if err != nil {
+		panic(err)
+	}
+
+	responseJson, _ := json.MarshalIndent(rs, "", "    ")
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseJson)
 }
