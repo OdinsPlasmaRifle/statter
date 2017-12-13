@@ -89,7 +89,7 @@ func (env *Env) SetupDb() error {
 		return err
 	}
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, name TEXT, url TEXT, status_code INTEGER NULL, body TEXT NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS responses (id INTEGER PRIMARY KEY, name TEXT, url TEXT, status_code INTEGER NULL, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
 
 	if err != nil {
 		return err

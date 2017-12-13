@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/odinsplasmarifle/statter/app"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -82,8 +81,7 @@ func (mon *Monitor) test(s app.Service, monitorTask chan<- monitorMessage) {
 			return
 		}
 
-		body, _ := ioutil.ReadAll(message.data.Body)
-		_, err = db.Exec("INSERT INTO responses (name, url, status_code, body) VALUES (?, ?, ?, ?)", s.Name, s.Url, message.data.StatusCode, string(body))
+		_, err = db.Exec("INSERT INTO responses (name, url, status_code) VALUES (?, ?, ?)", s.Name, s.Url, message.data.StatusCode)
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}

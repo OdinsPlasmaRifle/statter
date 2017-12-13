@@ -24,20 +24,19 @@ func (srv Server) Serve(port string) {
 
 // Response struct for data stored in the database.
 type response struct {
-	Id         string `db:"id"`
-	Name       string `db:"name"`
-	Url        string `db:"url"`
-	StatusCode int    `db:"status_code"`
-	Body       string `db:"body"`
-	Created    string `db:"created"`
+	Id         string `db:"id" json:"id"`
+	Name       string `db:"name" json:"name"`
+	Url        string `db:"url" json:"url"`
+	StatusCode int    `db:"status_code" json:"statusCode"`
+	Created    string `db:"created" json:"created"`
 }
 
 // Service struct for custom builtd outputs.
 type service struct {
-	Name        string
-	Label       string
-	Description string
-	Responses   []*response
+	Name        string      `json:"name"`
+	Label       string      `json:"label"`
+	Description string      `json:"description"`
+	Responses   []*response `json:"responses"`
 }
 
 func (srv Server) servicesHandler(w http.ResponseWriter, r *http.Request) {
