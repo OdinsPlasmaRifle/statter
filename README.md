@@ -92,8 +92,7 @@ Both endpoints can be filtered using the service `name` via GET parameters:
 
 ## Roadmap
 
-1. Update service (API) response data to:
-	a. Include aggregates of data over time.
+1. Add handling of non existent domains (missing domain schema).
 2. Add request time to DB for each monitor task.
 3. Improve error handling for server and monitoring.
 4. Add tests.
