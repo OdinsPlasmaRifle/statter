@@ -9,7 +9,7 @@ import (
 )
 
 // Default values.
-var interval = 5
+var interval = 60
 
 // Environment object
 type Env struct {
@@ -18,9 +18,10 @@ type Env struct {
 
 // Configuration object.
 type Config struct {
-	DatabaseFile string    `yaml:"databaseFile"`
-	Interval     int       `yaml:"interval"`
-	Services     []Service `yaml:"services"`
+	Database string    `yaml:"database"`
+	Port     string    `yaml:"port"`
+	Interval int       `yaml:"interval"`
+	Services []Service `yaml:"services"`
 }
 
 // Service object, stores details required for monitoring a service.
@@ -57,8 +58,13 @@ func NewEnv(confFile string) (*Env, error) {
 	}
 
 	// Set database file.
-	if conf.DatabaseFile == "" {
-		conf.DatabaseFile = "statter.db"
+	if conf.Database == "" {
+		conf.Database = "statter.db"
+	}
+
+	// Set port.
+	if conf.Port == "" {
+		conf.Port = "8080"
 	}
 
 	// Set default interval.
@@ -94,7 +100,7 @@ func (env *Env) SetupDb() error {
 }
 
 func (env *Env) ConnectDb() (*sqlx.DB, error) {
-	db, err := sqlx.Open("sqlite3", env.Conf.DatabaseFile)
+	db, err := sqlx.Open("sqlite3", env.Conf.Database)
 
 	if err != nil {
 		return nil, err

@@ -13,7 +13,6 @@ import (
 var confFileFlag = flag.String("config", "conf.yaml", "Config file")
 var monitorFlag = flag.String("monitor", "true", "Run Statter Monitor")
 var serveFlag = flag.String("serve", "true", "Serve Statter API")
-var portFlag = flag.String("port", "8080", "Statter API port")
 
 func main() {
 	log.Println("Loading...")
@@ -33,11 +32,11 @@ func main() {
 	var wg sync.WaitGroup
 
 	if *serveFlag == "true" {
-		log.Printf("Serving Statter on: %s", *portFlag)
+		log.Printf("Serving Statter on: %s", env.Conf.Port)
 
 		srv := server.Server{env}
 		wg.Add(1)
-		go srv.Serve(*portFlag)
+		go srv.Serve()
 	}
 
 	if *monitorFlag == "true" {

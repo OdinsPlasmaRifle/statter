@@ -12,13 +12,13 @@ type Server struct {
 	*app.Env
 }
 
-func (srv Server) Serve(port string) {
+func (srv Server) Serve() {
 	router := httprouter.New()
 
 	router.GET("/services/", srv.listServices)
 	router.GET("/responses/", srv.listResponses)
 
-	log.Fatal(http.ListenAndServe(":"+port, router))
+	log.Fatal(http.ListenAndServe(":"+srv.Conf.Port, router))
 }
 
 // Service struct for custom built outputs.

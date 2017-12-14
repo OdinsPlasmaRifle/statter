@@ -4,8 +4,8 @@ Lightweight status monitoring application for HTTP services.
 
 ## Usage
 
-Statter should be run via command line. Running a Statter server with automatic
-monitoring and an API server enabled is as simple as:
+Statter should be run via command line. To start a Statter server with
+monitoring enabled simply run:
 
 ```bash
 go run main.go -config=conf.yaml
@@ -18,29 +18,29 @@ Name | Description | Default
 `config` | yaml config file | conf.yaml
 `monitor` | run monitoring | true
 `serve` | run statter server | true
-`port` | statter server port | 8080
 
 ## Configuration
 
 Statter can be configured using a YAML configuration file. The following
 attributes are available:
 
-**databaseFile**
+**database**
 
-A path to the preferred database file. The database defaults to a `statter.db`
-file in the same location as the Statter executable.
+A path to the prefered database file location. The database defaults to a
+`statter.db` file in the same location as the Statter executable.
 
-Statter uses sqlite, so the database is very portable and easy to access oustide
-of Statter itself.
+**port**
+
+The port at which the Statter API will be available. This defaults to 8080.
 
 **interval**
 
 The length of time between each monitoring attempt on a service. This value is
-an integer representing a length of time in minutes. It defaults to 5 minutes.
+an integer representing a length of time in seconds. It defaults to 60 seconds.
 
 **services**
 
-Used to set the list of services which should be monitored/served by Statter.
+Contains the list of services that should be monitored/served by Statter.
 Each configured service should always have a `name` and `url` attribute defined.
 
 In addition, you can configure `method`, `body` and/or `headers` attributes for
@@ -51,10 +51,13 @@ each service.
 This example can be used as a template for Statter configuration files.
 
 ```yaml
-databaseFile: statter.db
+database: statter.db
+port: 8080
 interval: 5
 services:
     - name: test_one
+      label: "Test One"
+      description: "Test One Service"
       url: https://one.test.com
       method: GET
       body: '{"value": "one"}'
@@ -64,6 +67,8 @@ services:
           - name: Origin
             value: http://example.com
     - name: test_two
+      label: "Test Two"
+      description: "Test Two Service"
       url: https://two.test.com
       method: GET
       body: '{"value": "two"}'
@@ -74,11 +79,21 @@ services:
             value: http://example.com
 ```
 
+## JSON API
+
+The following endpoints are served by the JSON API:
+
+* GET: `http://localhost:8080/services/`
+* GET: `http://localhost:8080/responses/`
+
+Both endpoints can be filtered using the service `name` via GET parameters:
+
+`http://localhost:8080/services/?name=service_name`
+
 ## Roadmap
 
 1. Update service (API) response data to:
 	a. Include aggregates of data over time.
-	b. Exclude private data like headers.
-2. Add request time  to DB for each monitor task.
+2. Add request time to DB for each monitor task.
 3. Improve error handling for server and monitoring.
 4. Add tests.
