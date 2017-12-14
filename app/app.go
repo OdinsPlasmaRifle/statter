@@ -11,35 +11,30 @@ import (
 // Default values.
 var interval = 5
 
-// Application object
+// Environment object
 type Env struct {
 	Conf Config
 }
 
 // Configuration object.
 type Config struct {
-	DatabaseFile string   `yaml:"databaseFile"`
-	Interval     int      `yaml:"interval"`
-	Services     Services `yaml:"services"`
+	DatabaseFile string    `yaml:"databaseFile"`
+	Interval     int       `yaml:"interval"`
+	Services     []Service `yaml:"services"`
 }
 
-// List of multiple services.
-type Services []Service
-
-// Service object, stores details required for tetsing a service.
+// Service object, stores details required for monitoring a service.
 type Service struct {
-	Name        string  `yaml:"name"`
-	Label       string  `yaml:"label"`
-	Description string  `yaml:"description"`
-	Url         string  `yaml:"url"`
-	Method      string  `yaml:"method"`
-	Body        string  `yaml:"body"`
-	Headers     Headers `yaml:"headers"`
+	Name        string   `yaml:"name"`
+	Label       string   `yaml:"label"`
+	Description string   `yaml:"description"`
+	Url         string   `yaml:"url"`
+	Method      string   `yaml:"method"`
+	Body        string   `yaml:"body"`
+	Headers     []Header `yaml:"headers"`
 }
 
-// List of multiple services.
-type Headers []Header
-
+// Headers object, stores header details.
 type Header struct {
 	Name  string `yaml:"name"`
 	Value string `yaml:"value"`
@@ -49,29 +44,29 @@ func NewEnv(confFile string) (*Env, error) {
 	env := Env{}
 	conf := Config{}
 
-	// Find the specified config file
+	// Find the specified config file.
 	data, fileErr := ioutil.ReadFile(confFile)
 	if fileErr != nil {
 		return nil, fileErr
 	}
 
-	// Get config from a yaml file
+	// Get config from a yaml file.
 	yamlErr := yaml.Unmarshal([]byte(data), &conf)
 	if yamlErr != nil {
 		return nil, yamlErr
 	}
 
-	// Set database file
+	// Set database file.
 	if conf.DatabaseFile == "" {
 		conf.DatabaseFile = "statter.db"
 	}
 
-	// Set default interval
+	// Set default interval.
 	if conf.Interval == 0 {
 		conf.Interval = interval
 	}
 
-	// Fail if no services are defined
+	// Fail if no services are defined.
 	if len(conf.Services) == 0 {
 		return nil, errors.New("No services to monitor.")
 	}

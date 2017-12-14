@@ -21,7 +21,7 @@ func (srv Server) Serve(port string) {
 	log.Fatal(http.ListenAndServe(":"+port, router))
 }
 
-// Service struct for custom builtd outputs.
+// Service struct for custom built outputs.
 type service struct {
 	Name        string `json:"name"`
 	Label       string `json:"label"`
@@ -39,6 +39,7 @@ type response struct {
 	Created    string `db:"created" json:"created"`
 }
 
+// List services and filter services by name.
 func (srv Server) listServices(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	//db, err := srv.ConnectDb()
 
@@ -80,6 +81,7 @@ func (srv Server) listServices(w http.ResponseWriter, r *http.Request, _ httprou
 	w.Write(responseJson)
 }
 
+// List services and filter responses by service name.
 func (srv Server) listResponses(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	db, err := srv.ConnectDb()
 

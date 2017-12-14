@@ -41,7 +41,7 @@ func main() {
 	}
 
 	if *monitorFlag == "true" {
-		log.Println("Enabling monitoring mode.")
+		log.Println("Starting monitoring mode.")
 
 		mon := monitor.Monitor{env}
 		wg.Add(1)
