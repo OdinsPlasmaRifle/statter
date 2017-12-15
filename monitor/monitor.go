@@ -59,8 +59,8 @@ func (mon *Monitor) iterate() {
 
 // Message for carrying test response data.
 type testMessage struct {
-	data  *http.Response
-	error error
+	statusCode int
+	error      error
 }
 
 // Run tests on services and manage errors thrown by said requests. Creates a
@@ -81,12 +81,12 @@ func (mon *Monitor) test(s app.Service, monitorTask chan<- monitorMessage) {
 			return
 		}
 
-		_, err = db.Exec("INSERT INTO responses (name, url, status_code) VALUES (?, ?, ?)", s.Name, s.Url, message.data.StatusCode)
+		_, err = db.Exec("INSERT INTO responses (name, url, status_code) VALUES (?, ?, ?)", s.Name, s.Url, message.statusCode)
 
 		if err != nil {
 			monitorTask <- monitorMessage{error: err}
 		} else {
-			log.Println(fmt.Sprintf("Test: %v %v %v", s.Name, s.Url, message.data.Status))
+			log.Println(fmt.Sprintf("Test: %v %v %v", s.Name, s.Url, message.statusCode))
 			monitorTask <- monitorMessage{}
 		}
 	}
@@ -105,10 +105,10 @@ func (mon *Monitor) request(s app.Service, testTask chan<- testMessage) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		testTask <- testMessage{data: nil, error: err}
+		testTask <- testMessage{statusCode: 0, error: err}
 		return
 	}
 	defer resp.Body.Close()
 
-	testTask <- testMessage{data: resp, error: nil}
+	testTask <- testMessage{statusCode: resp.StatusCode, error: nil}
 }
