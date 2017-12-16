@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
 	"github.com/julienschmidt/httprouter"
@@ -53,11 +54,12 @@ type service struct {
 
 // Response struct for data stored in the database.
 type response struct {
-	Id         string    `db:"id" json:"id"`
-	Name       string    `db:"name" json:"name"`
-	Url        string    `db:"url" json:"url"`
-	StatusCode int       `db:"status_code" json:"statusCode"`
-	Created    time.Time `db:"created" json:"created"`
+	Id         string         `db:"id" json:"id"`
+	Name       string         `db:"name" json:"name"`
+	Url        string         `db:"url" json:"url"`
+	StatusCode int            `db:"status_code" json:"statusCode"`
+	Error      sql.NullString `db:"error" json:"error"`
+	Created    time.Time      `db:"created" json:"created"`
 }
 
 // List services and filter services by name.

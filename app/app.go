@@ -100,7 +100,7 @@ func (env *Env) SetupDb() error {
 }
 
 func (env *Env) ConnectDb() (*sqlx.DB, error) {
-	db, err := sqlx.Open("sqlite3", env.Conf.Database+"?parseTime=true")
+	db, err := sqlx.Open("sqlite3", env.Conf.Database+"?_busy_timeout=5000&parseTime=true")
 
 	if err != nil {
 		return nil, err

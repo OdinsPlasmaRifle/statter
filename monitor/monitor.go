@@ -2,10 +2,13 @@ package monitor
 
 import (
 	"bytes"
+	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/odinsplasmarifle/statter/app"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -35,7 +38,8 @@ func (mon *Monitor) Start() {
 
 // Message for catching monitoring errors.
 type monitorMessage struct {
-	error error
+	message string
+	error   error
 }
 
 // Iterate through each service and trigger a test task. Creates a monitoring
@@ -51,7 +55,9 @@ func (mon *Monitor) iterate() {
 		select {
 		case message := <-monitorTask:
 			if message.error != nil {
-				log.Println(fmt.Sprintf("Monitor: %v", message.error))
+				log.Println(message.error)
+			} else {
+				log.Println(message.message)
 			}
 		}
 	}
@@ -71,23 +77,27 @@ func (mon *Monitor) test(s app.Service, monitorTask chan<- monitorMessage) {
 	go mon.request(s, testTask)
 	message := <-testTask
 
+	var requestError sql.NullString
 	if message.error != nil {
-		monitorTask <- monitorMessage{error: message.error}
+		requestError.String = message.error.Error()
+	}
+
+	db, err := mon.ConnectDb()
+
+	if err != nil {
+		monitorTask <- monitorMessage{error: err}
+		return
+	}
+
+	_, err = db.Exec("INSERT INTO responses (name, url, status_code, error) VALUES (?, ?, ?, ?)", s.Name, s.Url, message.statusCode, requestError)
+
+	if err != nil {
+		monitorTask <- monitorMessage{error: err}
 	} else {
-		db, err := mon.ConnectDb()
-
-		if err != nil {
-			monitorTask <- monitorMessage{error: err}
-			return
-		}
-
-		_, err = db.Exec("INSERT INTO responses (name, url, status_code) VALUES (?, ?, ?)", s.Name, s.Url, message.statusCode)
-
-		if err != nil {
-			monitorTask <- monitorMessage{error: err}
+		if requestError.String != "" {
+			monitorTask <- monitorMessage{error: errors.New(requestError.String)}
 		} else {
-			log.Println(fmt.Sprintf("Test: %v %v %v", s.Name, s.Url, message.statusCode))
-			monitorTask <- monitorMessage{}
+			monitorTask <- monitorMessage{message: fmt.Sprintf("%v %v: %v", strings.Title(strings.ToLower(s.Method)), s.Url, message.statusCode)}
 		}
 	}
 }
@@ -101,7 +111,9 @@ func (mon *Monitor) request(s app.Service, testTask chan<- testMessage) {
 		req.Header.Set(h.Name, h.Value)
 	}
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Second * 5,
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

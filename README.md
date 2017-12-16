@@ -53,7 +53,7 @@ This example can be used as a template for Statter configuration files.
 ```yaml
 database: statter.db
 port: 8080
-interval: 5
+interval: 60
 services:
     - name: test_one
       label: "Test One"
@@ -92,7 +92,6 @@ Both endpoints can be filtered using the service `name` via GET parameters:
 
 ## Roadmap
 
-1. Add handling of non existent domains (missing domain schema).
-2. Add request time to DB for each monitor task.
-3. Improve error handling for server and monitoring.
-4. Add tests.
+1. Add request time to DB for each monitor task.
+2. Add tests.
+3. Update database inserts to function in a single "thread".
