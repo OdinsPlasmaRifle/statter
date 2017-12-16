@@ -2,10 +2,10 @@ package monitor
 
 import (
 	"bytes"
-	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/odinsplasmarifle/statter/app"
+	"gopkg.in/guregu/null.v3"
 	"log"
 	"net/http"
 	"strings"
@@ -77,7 +77,7 @@ func (mon *Monitor) test(s app.Service, monitorTask chan<- monitorMessage) {
 	go mon.request(s, testTask)
 	message := <-testTask
 
-	var requestError sql.NullString
+	var requestError null.String
 	if message.error != nil {
 		requestError.String = message.error.Error()
 	}
