@@ -89,16 +89,26 @@ func (mon *Monitor) test(s app.Service, monitorTask chan<- monitorMessage) {
 		return
 	}
 
-	_, err = db.Exec("INSERT INTO responses (name, url, status_code, error) VALUES (?, ?, ?, ?)", s.Name, s.Url, message.statusCode, requestError)
+	rowMap := map[string]interface{}{
+		"name":       s.Name,
+		"url":        s.Url,
+		"statusCode": message.statusCode,
+		"error":      requestError,
+	}
+
+	rows, err := db.NamedQuery("INSERT INTO responses (name, url, status_code, error) VALUES (:name, :url, :statusCode, :error)", rowMap)
 
 	if err != nil {
 		monitorTask <- monitorMessage{error: err}
+		return
+	}
+
+	defer rows.Close()
+
+	if requestError.String != "" {
+		monitorTask <- monitorMessage{error: errors.New(requestError.String)}
 	} else {
-		if requestError.String != "" {
-			monitorTask <- monitorMessage{error: errors.New(requestError.String)}
-		} else {
-			monitorTask <- monitorMessage{message: fmt.Sprintf("%v %v: %v", strings.Title(strings.ToLower(s.Method)), s.Url, message.statusCode)}
-		}
+		monitorTask <- monitorMessage{message: fmt.Sprintf("%v %v: %v", strings.Title(strings.ToLower(s.Method)), s.Url, message.statusCode)}
 	}
 }
 
