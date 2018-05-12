@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"github.com/odinsplasmarifle/statter/app"
 	"gopkg.in/guregu/null.v3"
@@ -19,15 +18,21 @@ type Monitor struct {
 // Start up monitoring for sevices, instantiates a ticker to trigger
 // off monitoring for services.
 func (mon *Monitor) Start() {
+	for _, s := range mon.Conf.Services {
+		go mon.ticker(s)
+	}
+}
+
+func (mon *Monitor) ticker(s app.Service) {
 	// Create a ticker and fire it off at a set duration.
-	ticker := time.NewTicker(time.Duration(mon.Conf.Interval) * time.Second)
+	ticker := time.NewTicker(time.Duration(s.Interval) * time.Second)
 	quit := make(chan struct{})
 
 	func() {
 		for {
 			select {
 			case <-ticker.C:
-				go mon.iterate()
+				go mon.test(s)
 			case <-quit:
 				ticker.Stop()
 				return
@@ -36,85 +41,48 @@ func (mon *Monitor) Start() {
 	}()
 }
 
-// Message for catching monitoring errors.
-type monitorMessage struct {
-	message string
-	error   error
-}
-
-// Iterate through each service and trigger a test task. Creates a monitoring
-// channel to catch goroutine errors.
-func (mon *Monitor) iterate() {
-	monitorTask := make(chan monitorMessage)
-
-	for _, s := range mon.Conf.Services {
-		go mon.test(s, monitorTask)
-	}
-
-	for i := 0; i < len(mon.Conf.Services); i++ {
-		select {
-		case message := <-monitorTask:
-			if message.error != nil {
-				log.Println(message.error)
-			} else {
-				log.Println(message.message)
-			}
-		}
-	}
-}
-
-// Message for carrying test response data.
-type testMessage struct {
-	statusCode int
-	error      error
-}
-
 // Run tests on services and manage errors thrown by said requests. Creates a
 // test message channel to catch any errors thrown by the actual request.
-func (mon *Monitor) test(s app.Service, monitorTask chan<- monitorMessage) {
-	testTask := make(chan testMessage)
+func (mon *Monitor) test(s app.Service) {
+	var requestErrorString null.String
 
-	go mon.request(s, testTask)
-	message := <-testTask
+	statusCode, requestError := mon.request(s)
 
-	var requestError null.String
-	if message.error != nil {
-		requestError.String = message.error.Error()
+	if requestError != nil {
+		requestErrorString.String = requestError.Error()
 	}
 
 	db, err := mon.ConnectDb()
 
 	if err != nil {
-		monitorTask <- monitorMessage{error: err}
+		log.Println(err)
 		return
 	}
 
 	rowMap := map[string]interface{}{
 		"name":       s.Name,
 		"url":        s.Url,
-		"statusCode": message.statusCode,
-		"error":      requestError,
+		"statusCode": statusCode,
+		"error":      requestErrorString,
 	}
 
 	rows, err := db.NamedQuery("INSERT INTO responses (name, url, status_code, error) VALUES (:name, :url, :statusCode, :error)", rowMap)
 
 	if err != nil {
-		monitorTask <- monitorMessage{error: err}
+		log.Println(err)
 		return
 	}
 
-	defer rows.Close()
-
-	if requestError.String != "" {
-		monitorTask <- monitorMessage{error: errors.New(requestError.String)}
+	if requestError != nil {
+		log.Println(requestErrorString)
 	} else {
-		monitorTask <- monitorMessage{message: fmt.Sprintf("%v %v: %v", strings.Title(strings.ToLower(s.Method)), s.Url, message.statusCode)}
+		log.Println(fmt.Sprintf("%v %v: %v", strings.Title(strings.ToLower(s.Method)), s.Url, statusCode))
 	}
 }
 
 // Handle the HTTP request on the service. Returns reponse data back to the
 // test message.
-func (mon *Monitor) request(s app.Service, testTask chan<- testMessage) {
+func (mon *Monitor) request(s app.Service) (int, error) {
 	req, _ := http.NewRequest(s.Method, s.Url, bytes.NewBuffer([]byte(s.Body)))
 
 	for _, h := range s.Headers {
@@ -127,10 +95,9 @@ func (mon *Monitor) request(s app.Service, testTask chan<- testMessage) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		testTask <- testMessage{statusCode: 0, error: err}
-		return
+		return 0, err
 	}
 	defer resp.Body.Close()
 
-	testTask <- testMessage{statusCode: resp.StatusCode, error: nil}
+	return resp.StatusCode, nil
 }

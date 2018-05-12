@@ -27,10 +27,10 @@ type service struct {
 	Name                  string    `json:"name"`
 	Label                 string    `json:"label"`
 	Description           string    `json:"description"`
-	TotalRequests         int       `json:"totalRequests" db:"total"`
-	TotalFailedRequests   int       `json:"totalFailedRequests" db:"total_failed"`
+	TotalRequests         null.Int  `json:"totalRequests" db:"total"`
+	TotalFailedRequests   null.Int  `json:"totalFailedRequests" db:"total_failed"`
 	LastFailedRequestDate null.Time `json:"lastFailedRequestDate" db:"last_failed"`
-	StatusCode            int       `json:"statusCode" db:"status_code"`
+	StatusCode            null.Int  `json:"statusCode" db:"status_code"`
 }
 
 // Response struct for data stored in the database.

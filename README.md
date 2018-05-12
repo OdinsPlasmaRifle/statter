@@ -34,11 +34,6 @@ uses a sqlite database to log requests.
 
 The port at which the Statter API will be available. This defaults to 8080.
 
-**interval**
-
-The length of time between each monitoring attempt on a service. This value is
-an integer representing a length of time in seconds. It defaults to 60 seconds.
-
 **services**
 
 Contains the list of services that should be monitored/served by Statter.
@@ -54,7 +49,6 @@ This example can be used as a template for Statter configuration files.
 ```yaml
 database: statter.db
 port: 8080
-interval: 60
 services:
     - name: test_one
       label: "Test One"
@@ -67,6 +61,7 @@ services:
             value: application/json
           - name: Origin
             value: http://example.com
+      interval: 60
     - name: test_two
       label: "Test Two"
       description: "Test Two Service"
@@ -78,6 +73,7 @@ services:
             value: application/json
           - name: Origin
             value: http://example.com
+      interval: 60
 ```
 
 ## JSON API
@@ -95,5 +91,4 @@ Both endpoints can be filtered using the service `name` via GET parameters:
 
 1. Add request time to DB for each monitor task.
 2. Add tests.
-3. Update database inserts to function in a single "thread" (Too prevent db lock issues)
-4. Change interval to be set on a per service basis.
+3. Update database inserts to function in a single "thread" (To prevent db lock issues)

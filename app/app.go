@@ -20,7 +20,6 @@ type Env struct {
 type Config struct {
 	Database string    `yaml:"database"`
 	Port     string    `yaml:"port"`
-	Interval int       `yaml:"interval"`
 	Services []Service `yaml:"services"`
 }
 
@@ -33,6 +32,7 @@ type Service struct {
 	Method      string   `yaml:"method"`
 	Body        string   `yaml:"body"`
 	Headers     []Header `yaml:"headers"`
+	Interval    int      `yaml:"interval"`
 }
 
 // Headers object, stores header details.
@@ -67,14 +67,18 @@ func NewEnv(confFile string) (*Env, error) {
 		conf.Port = "8080"
 	}
 
-	// Set default interval.
-	if conf.Interval == 0 {
-		conf.Interval = interval
-	}
-
 	// Fail if no services are defined.
 	if len(conf.Services) == 0 {
 		return nil, errors.New("No services to monitor.")
+	}
+
+	// Set default interval for each service.
+	for i := 0; i < len(conf.Services); i++ {
+		s := &conf.Services[i]
+
+		if s.Interval == 0 {
+			s.Interval = interval
+		}
 	}
 
 	// Add config to app object
