@@ -95,3 +95,4 @@ Both endpoints can be filtered using the service `name` via GET parameters:
 1. Add request time to DB for each monitor task.
 2. Add tests.
 3. Update database inserts to function in a single "thread".
+4. Change interval to be set on a per service basis.
