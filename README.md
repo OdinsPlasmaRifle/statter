@@ -27,7 +27,8 @@ attributes are available:
 **database**
 
 A path to the prefered database file location. The database defaults to a
-`statter.db` file in the same location as the Statter executable.
+`statter.db` file in the same location as the Statter executable. Statter
+uses a sqlite database to log requests.
 
 **port**
 
@@ -94,5 +95,5 @@ Both endpoints can be filtered using the service `name` via GET parameters:
 
 1. Add request time to DB for each monitor task.
 2. Add tests.
-3. Update database inserts to function in a single "thread".
+3. Update database inserts to function in a single "thread" (Too prevent db lock issues)
 4. Change interval to be set on a per service basis.
