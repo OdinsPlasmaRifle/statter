@@ -91,4 +91,4 @@ Both endpoints can be filtered using the service `name` via GET parameters:
 
 1. Add request time to DB for each monitor task.
 2. Add tests.
-3. Update database inserts to function in a single "thread" (To prevent db lock issues)
+3. Switch to multi db backends. Start with postgres
